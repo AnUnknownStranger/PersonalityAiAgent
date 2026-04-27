@@ -1,6 +1,6 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-from preprocess import run_preprocess
+from rag.preprocess import run_preprocess
 from rag.config import VECTOR_DB_PATH, EMBEDDING_MODEL
 import os
 
@@ -9,7 +9,8 @@ def build_index():
     docs = run_preprocess()
 
     embedding = HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL
+        model_name=EMBEDDING_MODEL,
+        model_kwargs={"local_files_only": True}
     )
 
     texts = [d["page_content"] for d in docs]

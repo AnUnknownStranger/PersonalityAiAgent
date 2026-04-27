@@ -1,4 +1,4 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from rag.config import VECTOR_DB_PATH, EMBEDDING_MODEL, TOP_K
 
@@ -10,7 +10,8 @@ def _load_db():
 
     if _db is None:
         embedding = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL
+            model_name=EMBEDDING_MODEL,
+            model_kwargs={"local_files_only": True}
         )
 
         _db = FAISS.load_local(

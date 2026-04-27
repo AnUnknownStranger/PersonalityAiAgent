@@ -11,6 +11,8 @@ from langchain_core.output_parsers import StrOutputParser,JsonOutputParser
 import json
 import glob
 from pathlib import Path
+from rag.retriever import retrieve_context
+
 
 
 ROOT = Path.cwd()
@@ -247,7 +249,7 @@ def violation(question):
     return result.content.strip()
 
 
-def ask_harry(question,chat_history, facts=facts_text, dialogues=all_dialogues):
+def ask_harry(question, chat_history, facts=facts_text, dialogues=all_dialogues):
     if not epistemic_gate(question, facts):
         res = violation(question)
         return {
@@ -259,13 +261,23 @@ def ask_harry(question,chat_history, facts=facts_text, dialogues=all_dialogues):
             },
             "sources": []
         }
-    reasoning = get_best_reason(question, facts)
-    retrieved_dialogues = simple_dialogue_retrieval(question, dialogues, top_k=10)
-    response_text = synthesize_final_response(question, reasoning, facts, retrieved_dialogues)
+
+    retrieved_dialogues = retrieve_context(question)
+    rag_context = facts + "\n\nRELEVANT HARRY DIALOGUE:\n" + "\n".join(retrieved_dialogues)
+
+    reasoning = get_best_reason(question, rag_context)
+    response_text = synthesize_final_response(
+        question,
+        reasoning,
+        rag_context,
+        retrieved_dialogues
+    )
+
     chat_history.append({"role": "user", "content": question})
     chat_history.append({"role": "assistant", "content": response_text})
+
     return {
-            "response": response_text,
-            "reasoning": reasoning,
-            "sources": ["Hogwarts Archives", "Daily Prophet Snippets"]
-        }
+        "response": response_text,
+        "reasoning": reasoning,
+        "sources": retrieved_dialogues
+    }
