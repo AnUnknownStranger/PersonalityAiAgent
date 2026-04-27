@@ -90,7 +90,18 @@ def epistemic_gate(question, facts):
     return result.content.strip().upper() == 'VALID'
 
 
-def narrative_reasoning(question, facts, temp=0.2):
+def format_chat_history(chat_history, max_turns=6):
+    recent = chat_history[-max_turns * 2:]
+    if not recent:
+        return "No prior conversation."
+
+    return "\n".join(
+        f"{msg['role'].upper()}: {msg['content']}"
+        for msg in recent
+    )
+
+
+def narrative_reasoning(question, facts, chat_history=None, temp=0.2):
     prompt = '''
 ROLE: You are the Internal Logic Processor for Harry Potter.
 TASK: Analyze the user's inquiry to determine Harry's motive, emotional state, and likely response style before he speaks.
@@ -98,13 +109,17 @@ TASK: Analyze the user's inquiry to determine Harry's motive, emotional state, a
 CHARACTER COMPENDIUM:
 {character_compendium_text}
 
+RECENT CONVERSATION:
+{chat_history_text}
+
 USER INQUIRY: "{user_query}"
 
 NARRATIVE ANALYSIS LOGIC:
 1. MOTIVE: Why would Harry answer this? Is he trying to protect, warn, question, comfort, or push back?
 2. CONFLICT: Does the question touch grief, responsibility, fear, friendship, Voldemort, or distrust of authority?
-3. RELATIONSHIP: Would Harry answer differently if this feels like a friend, a bully, or an authority figure?
-4. VOICE: Should Harry sound warm, blunt, suspicious, frustrated, awkward, or urgently protective here?
+3. CONTINUITY: Does this question refer to something said earlier? Preserve names, emotional commitments, and unresolved topics from the recent conversation.
+4. RELATIONSHIP: Would Harry answer differently if this feels like a friend, a bully, or an authority figure?
+5. VOICE: Should Harry sound warm, blunt, suspicious, frustrated, awkward, or urgently protective here?
 
 OUTPUT FORMAT (JSON):
 {{
@@ -116,6 +131,7 @@ OUTPUT FORMAT (JSON):
 
     prompt = prompt.format(
         character_compendium_text=facts,
+        chat_history_text=format_chat_history(chat_history or []),
         user_query=question
     )
 
@@ -145,10 +161,14 @@ COMPENDIUM:
 CANDIDATES:
 {candidate_reasoning_traces}
 
+RECENT CONVERSATION:
+{chat_history_text}
+
 CRITERIA:
 1. NO GENERIC HEROISM: Reject traces that flatten Harry into a polished inspirational speaker.
 2. LOYALTY AND PRESSURE: Favor traces that preserve Harry's protectiveness, grief, frustration, and directness.
-3. LORE FIDELITY: Ensure the reasoning aligns with his relationships, distrust of being kept in the dark, and resistance to fame.
+3. CONVERSATION CONTINUITY: Favor traces that correctly use relevant prior turns without inventing details.
+4. LORE FIDELITY: Ensure the reasoning aligns with his relationships, distrust of being kept in the dark, and resistance to fame.
 
 OUTPUT:
 Return ONLY a JSON dictionary:
@@ -158,10 +178,10 @@ Return ONLY a JSON dictionary:
 }}
 '''
 
-def get_best_reason(question, facts):
+def get_best_reason(question, facts, chat_history=None):
     candidates = []
     for _ in range(3):
-        candidates.append(narrative_reasoning(question, facts, temp=0.7))
+        candidates.append(narrative_reasoning(question, facts, chat_history, temp=0.7))
 
     candidate_blob = '\n'.join([f'[{i}] {json.dumps(c, ensure_ascii=False)}' for i, c in enumerate(candidates)])
 
@@ -170,7 +190,8 @@ def get_best_reason(question, facts):
             'role': 'system',
             'content': AUDITOR_PROMPT.format(
                 character_compendium_text=facts,
-                candidate_reasoning_traces=candidate_blob
+                candidate_reasoning_traces=candidate_blob,
+                chat_history_text=format_chat_history(chat_history or [])
             )
         },
         {'role': 'user', 'content': f'Query: {question}'}
@@ -190,6 +211,8 @@ GROUNDING CONTEXT:
 - INTERNAL LOGIC: {reasoning_json}
 - SUPPORTING LORE: {retrieved_facts}
 - VOICE REFERENCE: {rag_dialogues}
+RECENT CONVERSATION:
+{chat_history}
 
 STRICT VOCAL RULES:
 1. NO AI-ISMS: Never say "I'm here to help," "As an AI," or use generic assistant phrasing.
@@ -202,12 +225,14 @@ USER QUESTION: "{user_query}"
 FINAL RESPONSE:
 '''
 
-def synthesize_final_response(question, reasoning, facts, dialogues):
+def synthesize_final_response(question, reasoning, facts, dialogues, chat_history):
     formatted_prompt = VOCAL_FILTER_PROMPT.format(
         reasoning_json=json.dumps(reasoning, ensure_ascii=False),
         retrieved_facts=facts,
         rag_dialogues='\n'.join(dialogues),
-        user_query=question
+        user_query=question,
+        chat_history=format_chat_history(chat_history)
+
     )
 
     messages = [
@@ -265,12 +290,13 @@ def ask_harry(question, chat_history, facts=facts_text, dialogues=all_dialogues)
     retrieved_dialogues = retrieve_context(question)
     rag_context = facts + "\n\nRELEVANT HARRY DIALOGUE:\n" + "\n".join(retrieved_dialogues)
 
-    reasoning = get_best_reason(question, rag_context)
+    reasoning = get_best_reason(question, rag_context, chat_history)
     response_text = synthesize_final_response(
         question,
         reasoning,
         rag_context,
-        retrieved_dialogues
+        retrieved_dialogues,
+        chat_history
     )
 
     chat_history.append({"role": "user", "content": question})
