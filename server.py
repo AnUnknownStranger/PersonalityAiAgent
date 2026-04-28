@@ -19,6 +19,7 @@ for message in st.session_state.messages:
 
 if prompt := st.chat_input("Speak to Harry..."):
 
+    # 1. Add User Message to UI State
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -26,7 +27,6 @@ if prompt := st.chat_input("Speak to Harry..."):
     with st.chat_message("assistant"):
         with st.spinner("Harry is thinking..."):
             response_data = ask_harry(prompt, st.session_state.history_list)
-
         response_text = response_data["response"]
         reasoning = response_data.get("reasoning", {})
         sources = response_data.get("sources", [])
@@ -43,6 +43,4 @@ if prompt := st.chat_input("Speak to Harry..."):
             with st.expander("Lore References (Hogwarts Archives)"):
                 for source in sources:
                     st.caption(f"📖 {source}")
-
-
     st.session_state.messages.append({"role": "assistant", "content": response_text})

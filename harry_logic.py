@@ -37,8 +37,9 @@ llm = ChatDeepSeek(
     temperature=0.4, 
     api_key="sk-da6420ca5a6748e9907c500c66adb470" 
 )
-# Initialize an empty conversation history.
+
 chat_history = []
+
 
 
 def simple_dialogue_retrieval(question, dialogues, top_k=10):
@@ -59,29 +60,29 @@ def simple_dialogue_retrieval(question, dialogues, top_k=10):
     return best
 
 
-def epistemic_gate(question, facts):
+def epistemic_gate(question, chat_history, facts):
     prompt = """
     ROLE: You are the Lore Guardian for the Harry Potter Persona Engine.
-    TASK: Determine if the user's question can be answered using Harry Potter lore.
+    TASK: Determine if the user's question can be answered using Harry Potter lore or refers to the ongoing conversation about Harry Potter.
 
     VALID TOPICS:
     - Hogwarts, Spells, Potions, Quidditch, and Magic.
     - Characters (Ron, Hermione, Dumbledore, etc.).
     - Events from the books/movies (The Triwizard Tournament, Voldemort, etc.).
+    - Clarifications or follow-up questions about things mentioned in the RECENT CONVERSATION.
 
     INVALID TOPICS:
     - Real-world technology (coding, smartphones, internet).
     - Other fictional universes (Star Wars, Elden Ring, Marvel).
     - Modern Muggle science or politics.
 
-    DECISION RULE:
-    If the user asks about learning a spell or magic, it is VALID. 
-    If the user asks about a spell from a different game (like Elden Ring), it is INVALID.
+    RECENT CONVERSATION:
+    {chat_history_text}
 
     OUTPUT:
     Return ONLY 'VALID' or 'INVALID'.
     """
-    prompt = prompt.format(character_compendium_text=facts)
+    prompt = prompt.format(character_compendium_text=facts,chat_history_text=format_chat_history(chat_history))
     messages = [
         {'role': 'system', 'content': prompt},
         {'role': 'user', 'content': f'User Question: {question}'}
@@ -95,10 +96,12 @@ def format_chat_history(chat_history, max_turns=6):
     if not recent:
         return "No prior conversation."
 
-    return "\n".join(
-        f"{msg['role'].upper()}: {msg['content']}"
-        for msg in recent
-    )
+    formatted_lines = []
+    for msg in recent:
+        role = "Harry" if msg['role'] == 'assistant' else "User"
+        formatted_lines.append(f"{role}: {msg['content']}")
+    
+    return "\n".join(formatted_lines)
 
 
 def narrative_reasoning(question, facts, chat_history=None, temp=0.2):
@@ -274,8 +277,8 @@ def violation(question):
     return result.content.strip()
 
 
-def ask_harry(question, chat_history, facts=facts_text, dialogues=all_dialogues):
-    if not epistemic_gate(question, facts):
+def ask_harry(question, chat_history=chat_history, facts=facts_text, dialogues=all_dialogues):
+    if not epistemic_gate(question,chat_history, facts):
         res = violation(question)
         return {
             "response": res,
