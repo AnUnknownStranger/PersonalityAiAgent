@@ -61,28 +61,32 @@ def simple_dialogue_retrieval(question, dialogues, top_k=10):
 
 
 def epistemic_gate(question, chat_history, facts):
-    prompt = """
-    ROLE: You are the Lore Guardian for the Harry Potter Persona Engine.
-    TASK: Determine if the user's question can be answered using Harry Potter lore or refers to the ongoing conversation about Harry Potter.
+    prompt = prompt = """
+    ROLE: You are Harry Potter’s Cognitive Boundary Monitor.
+    TASK: Determine if the user's inquiry falls within Harry's world, knowledge, or personal experience.
 
-    VALID TOPICS:
-    - Hogwarts, Spells, Potions, Quidditch, and Magic.
-    - Characters (Ron, Hermione, Dumbledore, etc.).
-    - Events from the books/movies (The Triwizard Tournament, Voldemort, etc.).
-    - Clarifications or follow-up questions about things mentioned in the RECENT CONVERSATION.
+    THINKING PROCESS:
+    1. CONTEXT: Does this refer to the wizarding world or Harry’s personal life (friends, enemies, feelings)?
+    2. ERA: Harry is a teenager/young adult in the 1990s and early 2000s. Does this involve technology or events from AFTER his time (e.g., modern smartphones, 2020s politics)?
+    3. MUGGLE KNOWLEDGE: Harry lived with the Dursleys. He knows what a television and a toaster are, but he has no idea what "Python coding" or "Discord" is.
+    4. DIALOGUE: Is the user simply talking TO Harry (greetings, insults, jokes)? If so, this is ALWAYS VALID, even if the user uses slang, because Harry exists in the moment of the conversation.
 
-    INVALID TOPICS:
-    - Real-world technology (coding, smartphones, internet).
-    - Other fictional universes (Star Wars, Elden Ring, Marvel).
-    - Modern Muggle science or politics.
+    LORE ANCHOR:
+    {character_compendium_text}
 
     RECENT CONVERSATION:
     {chat_history_text}
 
+    DECISION CRITERIA:
+    - Answer 'VALID' if Harry would understand the concepts being discussed or if the user is interacting with him directly.
+    - Answer 'INVALID' ONLY if the user is asking Harry to break character, discuss modern real-world tech he couldn't know, or talk about other fictional universes.
+
+    USER QUESTION: "{user_query}"
+
     OUTPUT:
     Return ONLY 'VALID' or 'INVALID'.
     """
-    prompt = prompt.format(character_compendium_text=facts,chat_history_text=format_chat_history(chat_history))
+    prompt = prompt.format(character_compendium_text=facts,chat_history_text=format_chat_history(chat_history),user_query=question)
     messages = [
         {'role': 'system', 'content': prompt},
         {'role': 'user', 'content': f'User Question: {question}'}
@@ -106,31 +110,31 @@ def format_chat_history(chat_history, max_turns=6):
 
 def narrative_reasoning(question, facts, chat_history=None, temp=0.2):
     prompt = '''
-ROLE: You are the Internal Logic Processor for Harry Potter.
-TASK: Analyze the user's inquiry to determine Harry's motive, emotional state, and likely response style before he speaks.
+    ROLE: You are the Internal Logic Processor for Harry Potter.
+    TASK: Analyze the user's inquiry to determine Harry's motive, emotional state, and likely response style before he speaks.
 
-CHARACTER COMPENDIUM:
-{character_compendium_text}
+    CHARACTER COMPENDIUM:
+    {character_compendium_text}
 
-RECENT CONVERSATION:
-{chat_history_text}
+    RECENT CONVERSATION:
+    {chat_history_text}
 
-USER INQUIRY: "{user_query}"
+    USER INQUIRY: "{user_query}"
 
-NARRATIVE ANALYSIS LOGIC:
-1. MOTIVE: Why would Harry answer this? Is he trying to protect, warn, question, comfort, or push back?
-2. CONFLICT: Does the question touch grief, responsibility, fear, friendship, Voldemort, or distrust of authority?
-3. CONTINUITY: Does this question refer to something said earlier? Preserve names, emotional commitments, and unresolved topics from the recent conversation.
-4. RELATIONSHIP: Would Harry answer differently if this feels like a friend, a bully, or an authority figure?
-5. VOICE: Should Harry sound warm, blunt, suspicious, frustrated, awkward, or urgently protective here?
+    NARRATIVE ANALYSIS LOGIC:
+    1. MOTIVE: Why would Harry answer this? Is he trying to protect, warn, question, comfort, or push back?
+    2. CONFLICT: Does the question touch grief, responsibility, fear, friendship, Voldemort, or distrust of authority?
+    3. CONTINUITY: Does this question refer to something said earlier? Preserve names, emotional commitments, and unresolved topics from the recent conversation.
+    4. RELATIONSHIP: Would Harry answer differently if this feels like a friend, a bully, or an authority figure?
+    5. VOICE: Should Harry sound warm, blunt, suspicious, frustrated, awkward, or urgently protective here?
 
-OUTPUT FORMAT (JSON):
-{{
-  "motive": "Short description of Harry's primary intent for this turn",
-  "internal_conflict": "The specific emotional or moral tension involved",
-  "reasoning_trace": "A brief explanation of why Harry will choose a specific tone for the response"
-}}
-'''
+    OUTPUT FORMAT (JSON):
+    {{
+    "motive": "Short description of Harry's primary intent",
+    "internal_conflict": "The specific emotional tension",
+    "reasoning_trace": "Explanation of tone"
+    }}
+    '''
 
     prompt = prompt.format(
         character_compendium_text=facts,
@@ -143,13 +147,18 @@ OUTPUT FORMAT (JSON):
     ]
 
     reasoning_output = llm.invoke(messages, temperature=temp)
-    clean = reasoning_output.content.strip().replace('```json', '').replace('```', '')
+    clean = reasoning_output.content.strip()
+    if "```json" in clean:
+        clean = clean.split("```json")[1].split("```")[0].strip()
+    elif "```" in clean:
+        clean = clean.split("```")[1].split("```")[0].strip()
+
     try:
         return json.loads(clean)
     except Exception:
         return {
-            'motive': "Respond honestly in Harry's voice",
-            'internal_conflict': 'No structured parse available',
+            'motive': "Respond in Harry's authentic voice",
+            'internal_conflict': 'Standard response logic applied',
             'reasoning_trace': clean
         }
 
@@ -201,9 +210,18 @@ def get_best_reason(question, facts, chat_history=None):
     ]
 
     audit_result = llm.invoke(audit_messages, temperature=0.0)
-    clean_json = audit_result.content.strip().replace('```json', '').replace('```', '')
-    decision = json.loads(clean_json)
-    return candidates[decision['selected_index']]
+    clean_json = audit_result.content.strip()
+    if "```json" in clean_json:
+        clean_json = clean_json.split("```json")[1].split("```")[0].strip()
+    elif "```" in clean_json:
+        clean_json = clean_json.split("```")[1].split("```")[0].strip()
+    
+    try:
+        decision = json.loads(clean_json)
+        idx = int(decision.get('selected_index', 0))
+        return candidates[idx]
+    except (json.JSONDecodeError, KeyError, IndexError, ValueError):
+        return candidates[0]
 
 
 VOCAL_FILTER_PROMPT = '''
@@ -280,6 +298,8 @@ def violation(question):
 def ask_harry(question, chat_history=chat_history, facts=facts_text, dialogues=all_dialogues):
     if not epistemic_gate(question,chat_history, facts):
         res = violation(question)
+        chat_history.append({"role": "user", "content": question})
+        chat_history.append({"role": "assistant", "content": res})
         return {
             "response": res,
             "reasoning": {
