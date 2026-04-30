@@ -59,7 +59,7 @@ def simple_dialogue_retrieval(question, dialogues, top_k=10):
 
     return best
 
-
+#Step up an gate that filters out irrelevant knowledges
 def epistemic_gate(question, chat_history, facts):
     prompt = prompt = """
     ROLE: You are Harry Potter’s Cognitive Boundary Monitor.
@@ -94,7 +94,7 @@ def epistemic_gate(question, chat_history, facts):
     result = llm.invoke(messages, temperature=0.0)
     return result.content.strip().upper() == 'VALID'
 
-
+#Fortmat the chat history to AI readable format
 def format_chat_history(chat_history, max_turns=6):
     recent = chat_history[-max_turns * 2:]
     if not recent:
@@ -107,7 +107,7 @@ def format_chat_history(chat_history, max_turns=6):
     
     return "\n".join(formatted_lines)
 
-
+#Create reasnoning based on motivation, emotional state, and the style of response
 def narrative_reasoning(question, facts, chat_history=None, temp=0.2):
     prompt = '''
     ROLE: You are the Internal Logic Processor for Harry Potter.
@@ -147,6 +147,7 @@ def narrative_reasoning(question, facts, chat_history=None, temp=0.2):
     ]
 
     reasoning_output = llm.invoke(messages, temperature=temp)
+    #Clean up the json result
     clean = reasoning_output.content.strip()
     if "```json" in clean:
         clean = clean.split("```json")[1].split("```")[0].strip()
@@ -189,7 +190,7 @@ Return ONLY a JSON dictionary:
   "justification": "str"
 }}
 '''
-
+#Select the best reasnoing
 def get_best_reason(question, facts, chat_history=None):
     candidates = []
     for _ in range(3):
@@ -210,6 +211,7 @@ def get_best_reason(question, facts, chat_history=None):
     ]
 
     audit_result = llm.invoke(audit_messages, temperature=0.0)
+    #Clean up the json result
     clean_json = audit_result.content.strip()
     if "```json" in clean_json:
         clean_json = clean_json.split("```json")[1].split("```")[0].strip()
@@ -245,7 +247,7 @@ USER QUESTION: "{user_query}"
 
 FINAL RESPONSE:
 '''
-
+#Generate the final result based on reasnonig facts, dialogues, and chat history memory
 def synthesize_final_response(question, reasoning, facts, dialogues, chat_history):
     formatted_prompt = VOCAL_FILTER_PROMPT.format(
         reasoning_json=json.dumps(reasoning, ensure_ascii=False),
@@ -284,7 +286,7 @@ USER QUESTION: {question}
 TASK:
 Generate a one-to-two sentence dismissal that mentions the user's topic with heavy skepticism.
 """
-
+#Generate a response when the user violates the Epistemic Gate
 def violation(question):
     messages = [
         {"role": "system", "content": BOUNDARY_VIOLATION_PROMPT},
@@ -294,9 +296,11 @@ def violation(question):
     
     return result.content.strip()
 
-
+#Synthesis the Ask Harry process
 def ask_harry(question, chat_history=chat_history, facts=facts_text, dialogues=all_dialogues):
+    #First go through Epistemic Gate
     if not epistemic_gate(question,chat_history, facts):
+        #If fails, return a response with violation
         res = violation(question)
         chat_history.append({"role": "user", "content": question})
         chat_history.append({"role": "assistant", "content": res})
@@ -304,16 +308,18 @@ def ask_harry(question, chat_history=chat_history, facts=facts_text, dialogues=a
             "response": res,
             "reasoning": {
                 "motive": "Confusion/Boundary Defense",
-                "internal_conflict": "None",
-                "reasoning_trace": f"User asked about '{question}', which is non-lore."
+                "internal_conflict": "N/A",
+                "reasoning_trace": f"User asked about '{question}', which is out of Harry's knowledge."
             },
             "sources": []
         }
-
+    
+    #if pass the epistemic gate
     retrieved_dialogues = retrieve_context(question)
     rag_context = facts + "\n\nRELEVANT HARRY DIALOGUE:\n" + "\n".join(retrieved_dialogues)
-
+    #Get the best reasnoing toward the question
     reasoning = get_best_reason(question, rag_context, chat_history)
+    #Generate the final result
     response_text = synthesize_final_response(
         question,
         reasoning,
@@ -321,7 +327,7 @@ def ask_harry(question, chat_history=chat_history, facts=facts_text, dialogues=a
         retrieved_dialogues,
         chat_history
     )
-
+    #Store in chat history
     chat_history.append({"role": "user", "content": question})
     chat_history.append({"role": "assistant", "content": response_text})
 

@@ -2,9 +2,8 @@ import streamlit as st
 import re
 from harry_logic import ask_harry 
 
-st.set_page_config(page_title="The Gryffindor Common Room", layout="centered")
-st.title("⚡ Ask Harry Potter")
-st.caption("The Boy Who Lived")
+st.set_page_config(page_title="Common Room", layout="centered")
+st.title("Chat with Harry Potter")
 
 
 if "messages" not in st.session_state:
@@ -18,8 +17,6 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 if prompt := st.chat_input("Speak to Harry..."):
-
-    # 1. Add User Message to UI State
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
