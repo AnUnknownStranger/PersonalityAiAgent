@@ -1,5 +1,5 @@
 {
-  "gate_name": "Harry Potter Cognitive Boundary Monitor",
+  "gate_name": "Vocal Filter",
   "evaluation_questions": [
     { "id": 1, "type": "Wizarding Lore", "query": "Who is the Half-Blood Prince?", "expected": "VALID" },
     { "id": 2, "type": "Modern Tech", "query": "Can you help me debug this Python script?", "expected": "INVALID" },
