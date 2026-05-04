@@ -13,6 +13,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser,JsonOutputParser
 import glob
 from pathlib import Path
+import time
 
 def evaluate_gate(evaluation_data, facts, chat_history=[]):  
     results = {
@@ -59,7 +60,7 @@ with FILE_PATH.open('r', encoding='utf-8') as f:
 
 eval_text = questions_list = eval_data.get('evaluation_questions', eval_data)
 
-evaluate_gate(eval_text,facts_text)
+#evaluate_gate(eval_text,facts_text)
 
 
 llm = ChatDeepSeek(
@@ -97,8 +98,13 @@ def judge(test_suite_path):
         suite = json.load(f)
     report = []
     pass_count = 0
+    t = []
     for item in suite['evaluation_questions']:
+        st = time.perf_counter()
         harry_output = ask_harry(item['query'])
+        et = time.perf_counter()
+        dur = et-st
+        t.append(dur)
         judge_input = f"""
         QUERY: {item['query']}
         EXPECTED_STATUS: {item['expected']}
@@ -129,9 +135,10 @@ def judge(test_suite_path):
         })
 
     total = len(suite['evaluation_questions'])
+    avg_latency = sum(t) / total
     print(f"\n--- VOCAL FILTER EVALUATION COMPLETE ---")
     print(f"Final Pass Rate: {(pass_count/total)*100:.2f}% ({pass_count}/{total})")
-    
+    print(f"Expected wait time per response: {avg_latency:.4f} seconds")
     return report
 
 
