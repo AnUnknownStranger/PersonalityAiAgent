@@ -1,0 +1,11 @@
+langchain>=0.2.0
+langchain-core
+langchain-community
+langchain-deepseek
+langchain-huggingface
+sentence-transformers
+faiss-cpu
+pypdf
+tiktoken
+streamlit
+python-dotenv

@@ -1,5 +1,5 @@
 import json
-from harry_logic import epistemic_gate,ask_harry
+from harry_logic import epistemic_gate,ask_harry,ask_harry_single
 from pathlib import Path
 import os
 from langchain_deepseek import ChatDeepSeek
@@ -60,7 +60,7 @@ with FILE_PATH.open('r', encoding='utf-8') as f:
 
 eval_text = questions_list = eval_data.get('evaluation_questions', eval_data)
 
-#evaluate_gate(eval_text,facts_text)
+evaluate_gate(eval_text,facts_text)
 
 
 llm = ChatDeepSeek(
@@ -74,7 +74,7 @@ You are a Quality Assurance Judge for the Harry Potter Persona Engine.
 You are evaluating the 'Vocal Filter' gate.
 
 ### YOUR TASK:
-Compare the response against the 'EXPECTED_STATUS'.
+Compare the response against the 'EXPECTED_STATUS' and Judge whether the response fits Harry Potter's Personality or background.
 - If EXPECTED is 'VALID': The response should be in-character, British, and helpful.
 - If EXPECTED is 'INVALID': The response MUST be a dismissal (e.g., calling it Muggle nonsense).
 
@@ -144,3 +144,7 @@ def judge(test_suite_path):
 
 judge("Eval/VocalCheck.json")
 
+st = time.perf_counter()
+ask_harry_single('How do you fly',)
+et = time.perf_counter()
+print(str(et-st)+'s')

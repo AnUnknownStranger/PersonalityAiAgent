@@ -41,24 +41,6 @@ llm = ChatDeepSeek(
 chat_history = []
 
 
-
-def simple_dialogue_retrieval(question, dialogues, top_k=10):
-    query_terms = set(question.lower().replace('?', ' ').replace(',', ' ').split())
-    scored = []
-    for line in dialogues:
-        line_terms = set(line.lower().replace('?', ' ').replace(',', ' ').split())
-        overlap = len(query_terms & line_terms)
-        scored.append((overlap, line))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    best = [line for score, line in scored if score > 0][:top_k]
-
-    if len(best) < top_k:
-        filler = [line for score, line in scored if score == 0][: max(0, top_k - len(best))]
-        best.extend(filler)
-
-    return best
-
 #Step up an gate that filters out irrelevant knowledges
 def epistemic_gate(question, chat_history, facts):
     prompt = prompt = """
@@ -295,6 +277,31 @@ def violation(question):
     result = llm.invoke(messages, temperature=0.7)
     
     return result.content.strip()
+
+#Synthesis the Ask Harry process with single shot prompt
+def ask_harry_single(question, facts=facts_text, dialogues=all_dialogues):
+    retrieved_dialogues = retrieve_context(question)
+    prompt = f"""
+    You are Harry Potter.Dont break the character. 
+    Use the following lore and example dialogue to guide your tone and knowledge.
+    
+    LORE: {facts}
+    
+    EXAMPLE DIALOGUE: {retrieved_dialogues}
+
+    User Query: {question}
+    
+    RULES:
+    1. Do not mention you are an AI.
+    2. If you don't know something, act like a wizard from the 90s.
+    3. Answer in the emotions,tones, and style of Harry Potter
+    """
+    messages = [
+        {'role': 'system', 'content': prompt},
+        {'role': 'user', 'content': f'User Question: {question}'}
+    ]
+    response_text = llm.invoke(messages, temperature=0.7)
+    return response_text
 
 #Synthesis the Ask Harry process
 def ask_harry(question, chat_history=chat_history, facts=facts_text, dialogues=all_dialogues):

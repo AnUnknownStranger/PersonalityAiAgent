@@ -29,7 +29,7 @@ if prompt := st.chat_input("Speak to Harry..."):
         sources = response_data.get("sources", [])
 
         with st.sidebar:
-            st.subheader("🧙‍♂️ Persona Internal State")
+            st.subheader("Persona Internal State")
             st.write(f"**Motive:** {reasoning.get('motive', 'N/A')}")
             st.write(f"**Conflict:** {reasoning.get('internal_conflict', 'N/A')}")
             st.info(f"**Reasoning Trace:** {reasoning.get('reasoning_trace', 'N/A')}")
